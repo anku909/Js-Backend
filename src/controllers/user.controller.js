@@ -84,12 +84,12 @@ const registerUser = asyncHandler(async (req, res) => {
 const loginUser = asyncHandler(async (req, res) => {
   // req body -> data
   const { username, email, password } = req.body;
-  if (!username || !email) {
+  if (!username && !email) {
     throw new apiError(400, "username or password is required");
   }
   // user validation username or email
   const user = await User.findOne({ $or: [{ username }, { email }] });
-  if (!User) {
+  if (!user) {
     throw new apiError(404, "User does not found!");
   }
   // password check
@@ -99,11 +99,11 @@ const loginUser = asyncHandler(async (req, res) => {
   }
   // access and refresh token
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
-    User._id
+    user._id
   );
 
   // send cookies
-  const loggedInUser = User.findById(user._id).select(
+  const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
   const options = {
@@ -124,25 +124,23 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-const logoutUser = asyncHandler(
-  async(async (req, res) => {
-    await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: { refreshToken: undefined } },
-      { new: true }
-    );
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { $unset: { refreshToken: 1 } },
+    { new: true }
+  );
 
-    const options = {
-      httpOnly: true,
-      secure: true,
-    };
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
 
-    return res
-      .status(200)
-      .clearCookie("accessToken", options)
-      .clearCookie("refreshToken", options)
-      .res.json(new ApiResponse(200, "user logged Out"));
-  })
-);
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "user logged Out"));
+});
 
 export { registerUser, loginUser, logoutUser };
